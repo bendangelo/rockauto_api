@@ -26,4 +26,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency "nokogiri", "~> 1.15"
   spec.add_dependency "dry-types", "~> 1.7"
   spec.add_dependency "dry-struct", "~> 1.6"
+
+  spec.add_development_dependency "irb", "~> 1.18.0"
+  spec.add_development_dependency "rake", "~> 13.0"
+  spec.add_development_dependency "webmock", "~> 3.0"
+  spec.add_development_dependency "vcr", "~> 6.0"
 end

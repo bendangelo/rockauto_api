@@ -120,10 +120,9 @@ module RockautoApi
 
           listing_data = extract_listing_data_from_row(row)
 
-          Models::PartInfo.new(
-            **part.to_h,
-            listing_data: listing_data
-          )
+          attrs = part.to_h
+          attrs[:listing_data] = listing_data if listing_data
+          Models::PartInfo.new(**attrs)
         }.compact
       end
 

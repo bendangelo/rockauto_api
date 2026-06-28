@@ -61,12 +61,7 @@ module RockautoApi
           price: price,
           url: url,
           image_url: image_url,
-          info_url: info_url,
-          video_url: nil,
-          category: nil,
-          specifications: nil,
-          compatibility_notes: nil,
-          listing_data: nil
+          info_url: info_url
         )
       rescue StandardError
         nil
