@@ -4,22 +4,15 @@ module RockautoApi
   module Endpoints
     module PartCategories
       def get_part_categories(make, year, model, carcode)
-        payload = {
-          "jsn" => {
-            "make" => make,
-            "year" => year.to_s,
-            "model" => model,
-            "carcode" => carcode,
-            "nodetype" => "model",
-            "loaded" => false,
-            "expand_after_load" => true,
-            "fetching" => true,
-            "max_group_index" => 0,
-            "mkt_US" => true,
-            "mkt_CA" => false,
-            "mkt_MX" => false
-          }
-        }
+        payload = navnode_fetch_payload(
+          make: make,
+          nodetype: "model",
+          label: model,
+          href: "#{Client::BASE_URL}/en/catalog/#{make.downcase},#{year},#{model.downcase}",
+          year: year,
+          model: model,
+          carcode: carcode
+        )
 
         response = call_catalog_api("navnode_fetch", payload)
         html = response.dig("html_fill_sections", "navchildren[]") || ""

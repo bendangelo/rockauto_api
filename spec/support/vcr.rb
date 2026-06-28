@@ -22,6 +22,15 @@ VCR.configure do |config|
     cookie&.first.to_s
   end
 
+  # removed for now
+  TEST_EMAIL = ""
+  TEST_PASSWORD = ''
+
+  config.filter_sensitive_data("<TEST_EMAIL>") { TEST_EMAIL }
+  config.filter_sensitive_data("<TEST_PASSWORD>") { TEST_PASSWORD }
+  config.filter_sensitive_data("<TEST_EMAIL_ENCODED>") { CGI.escape(TEST_EMAIL) }
+  config.filter_sensitive_data("<TEST_PASSWORD_ENCODED>") { CGI.escape(TEST_PASSWORD) }
+
   config.before_record do |interaction|
     body = interaction.response.body
     if body.encoding == Encoding::ASCII_8BIT

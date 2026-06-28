@@ -68,6 +68,7 @@ module RockautoApi
 
       resp = @conn.get("/")
       @nck_token = Parsers::HtmlHelpers.extract_javascript_variable(resp.body, "_nck")
+      @nck_token ||= Parsers::HtmlHelpers.extract_csrf_token(resp.body, "_nck")
       @jnck_token = @nck_token ? CGI.escape(@nck_token) : nil
       @session_initialized = true
     end
@@ -126,21 +127,48 @@ module RockautoApi
       end
 
       if make
-        payload = {
-          "jsn" => {
-            "make" => make,
-            "nodetype" => "make",
-            "loaded" => false,
-            "expand_after_load" => true,
-            "fetching" => true,
-            "max_group_index" => 363,
-            "mkt_US" => true,
-            "mkt_CA" => false,
-            "mkt_MX" => false
-          }
-        }
+        payload = navnode_fetch_payload(
+          make: make,
+          nodetype: "make",
+          label: make,
+          href: "#{BASE_URL}/en/catalog/#{make.downcase}"
+        )
         call_catalog_api("navnode_fetch", payload)
       end
+    end
+
+    def navnode_fetch_payload(make:, nodetype:, label: nil, href: nil, year: nil, model: nil, carcode: nil)
+      jsn = {
+        "tab" => "catalog",
+        "make" => make,
+        "nodetype" => nodetype,
+        "jsdata" => {
+          "markets" => [
+            {"c" => "US", "y" => "Y", "i" => "Y"},
+            {"c" => "CA", "y" => "Y", "i" => "Y"},
+            {"c" => "MX", "y" => "Y", "i" => "Y"}
+          ],
+          "mktlist" => "US,CA,MX",
+          "showForMarkets" => {"US" => true, "CA" => true, "MX" => true},
+          "importanceByMarket" => {"US" => "Y", "CA" => "Y", "MX" => "Y"},
+          "Show" => 1
+        },
+        "loaded" => false,
+        "expand_after_load" => true,
+        "fetching" => true
+      }
+
+      jsn["year"] = year.to_s if year
+      jsn["model"] = model if model
+      jsn["carcode"] = carcode if carcode
+      jsn["label"] = label if label
+      jsn["href"] = href if href
+      jsn["labelset"] = true if label || href
+      jsn["jump_to_after_expand"] = true if nodetype == "make"
+      jsn["dont_change_url"] = true if nodetype == "make"
+      jsn["has_more_auto_open_steps"] = true if nodetype == "make"
+
+      { "jsn" => jsn, "max_group_index" => 388 }
     end
 
     def get(path)

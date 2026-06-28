@@ -8,23 +8,41 @@ module RockautoApi
       ORDER_HISTORY_URL = "/en/orderhistory/"
 
       def login(email, password)
-        payload = {
-          "jsn" => {
-            "email" => email,
-            "password" => password,
-            "keep_me_logged_in" => false
-          }
+        init_session!
+
+        form_data = {
+          "loginaction" => "login",
+          "accountemail" => email,
+          "captchacode" => "",
+          "passworddecoy" => "",
+          "password" => password,
+          "passwordconfirmdecoy" => "",
+          "passwordconfirm" => "",
+          "keepsignin" => "false",
+          "async" => "1",
+          "accountlogin_php" => "1"
         }
 
-        response = call_catalog_api("login", payload)
-        @authenticated = response["success"] == true || response.dig("response", "success") == true
+        resp = account_api_post(form_data)
+
+        result = JSON.parse(resp.body)
+        @authenticated = result["message"]&.include?("Successful") || false
         @authenticated
-      rescue NetworkError
+      rescue StandardError
         @authenticated = false
       end
 
       def logout
-        response = call_catalog_api("logout", {})
+        init_session!
+
+        form_data = {
+          "loginaction" => "logout",
+          "async" => "1",
+          "accountlogin_php" => "1"
+        }
+
+        account_api_post(form_data)
+
         @authenticated = false
         true
       rescue StandardError
@@ -153,6 +171,23 @@ module RockautoApi
 
       def require_authentication!
         raise AuthenticationError, "Not authenticated. Call login(email, password) first." unless @authenticated
+      end
+
+      def account_api_post(form_data)
+        Faraday.new(url: Client::BASE_URL) do |f|
+          f.request :url_encoded
+          f.use :cookie_jar
+          f.adapter Faraday.default_adapter
+          f.options.timeout = RockautoApi.configuration&.request_timeout || 30
+          @conn.headers["Cookie"].to_s.split(";").each do |cookie|
+            name, val = cookie.strip.split("=", 2)
+            f.headers["Cookie"] = "#{f.headers['Cookie']}; #{name}=#{val}" if name && val
+          end
+          f.headers["User-Agent"] = Client::MOBILE_HEADERS["User-Agent"]
+          f.headers["Referer"] = "#{Client::BASE_URL}/"
+          f.headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+          f.headers["X-Requested-With"] = "XMLHttpRequest"
+        end.post("/catalog/catalogapi.php", form_data)
       end
     end
   end
