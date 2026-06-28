@@ -39,9 +39,25 @@ RSpec.describe "Part Search endpoints", :vcr do
 
   describe "#search_parts_by_number" do
     it "returns parts for a part number" do
+      result = client.search_parts_by_number("FG0326")
+      expect(result).to be_a(RockautoApi::Models::PartSearchResult)
+      expect(result.search_term).to eq("FG0326")
+      expect(result.count).to be > 0
+      expect(result.parts).to all be_a(RockautoApi::Models::PartInfo)
+      result.parts.each do |part|
+        expect(part.part_number).not_to eq("Unknown")
+        expect(part.brand).not_to be_nil
+      end
+    end
+
+    it "does not return captcha or bot detection content" do
       result = client.search_parts_by_number("45022-S9A-315")
       expect(result).to be_a(RockautoApi::Models::PartSearchResult)
-      expect(result.search_term).to eq("45022-S9A-315")
+      suspicious = /email|password|security|captcha|submit|reset|privacy/i
+      result.parts.each do |part|
+        expect(part.name).not_to match(suspicious)
+        expect(part.part_number).not_to eq("Unknown")
+      end
     end
   end
 end

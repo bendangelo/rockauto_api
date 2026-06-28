@@ -106,6 +106,7 @@ module RockautoApi
     end
 
     def post_with_csrf(url, form_data)
+      init_session!
       page_resp = @conn.get(url)
       nck = Parsers::HtmlHelpers.extract_csrf_token(page_resp.body)
       form_data["_nck"] = nck if nck
@@ -143,6 +144,7 @@ module RockautoApi
     end
 
     def get(path)
+      init_session!
       resp = @conn.get(path)
       resp.body
     rescue Faraday::Error => e
@@ -150,6 +152,7 @@ module RockautoApi
     end
 
     def post(path, body = nil)
+      init_session!
       resp = @conn.post(path, body)
       resp.body
     rescue Faraday::Error => e

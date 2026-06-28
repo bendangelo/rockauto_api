@@ -62,20 +62,47 @@ module RockautoApi
           type_value = match&.value || ""
         end
 
+        init_session!
+
+        page_resp = @conn.get("/en/partsearch/")
+        nck = Parsers::HtmlHelpers.extract_csrf_token(page_resp.body)
+
         form_data = {
+          "_nck" => nck || "",
+          "_jnck" => @jnck_token || "",
           "dopartsearch" => "1",
           "partsearch[partnum][partsearch_007]" => part_number,
           "partsearch[manufacturer][partsearch_007]" => man_value,
           "partsearch[partgroup][partsearch_007]" => group_value,
           "partsearch[parttype][partsearch_007]" => type_value,
           "partsearch[partname][partsearch_007]" => part_name || "",
-          "partsearch[do][partsearch_007]" => "Search"
+          "partsearch[do][partsearch_007]" => "Search",
+          "func" => "sendparttabsearch",
+          "payload" => "{}",
+          "api_json_request" => "1",
+          "sctchecked" => "1",
+          "scbeenloaded" => "false",
+          "curCartGroupID" => ""
         }
 
-        html = post_with_csrf("/en/partsearch/", form_data)
-        doc = Nokogiri::HTML(html)
+        resp = Faraday.new(url: "https://www.rockauto.com") do |f|
+          f.request :url_encoded
+          f.use :cookie_jar
+          f.adapter Faraday.default_adapter
+          f.options.timeout = RockautoApi.configuration&.request_timeout || 30
+          f.headers["X-Requested-With"] = "XMLHttpRequest"
+          f.headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+          f.headers["User-Agent"] = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1"
+          f.headers["Referer"] = "https://www.rockauto.com/en/partsearch/"
+          @conn.headers["Cookie"].to_s.split(";").each do |cookie|
+            name, val = cookie.strip.split("=", 2)
+            f.headers["Cookie"] = "#{f.headers['Cookie']}; #{name}=#{val}" if name && val
+          end
+        end.post("catalog/catalogapi.php", form_data)
 
-        parts = parse_part_search_results(doc)
+        response = JSON.parse(resp.body)
+
+        parts = parse_part_search_json(response)
         parts = parts.map do |p|
           attrs = p.to_h
           if include_fitments && attrs[:listing_data]
@@ -91,6 +118,8 @@ module RockautoApi
           manufacturer: manufacturer || "All",
           part_group: part_group || "All"
         )
+      rescue Faraday::Error => e
+        raise NetworkError, "Part search failed: #{e.message}"
       end
 
       def what_is_part_called(search_query)
@@ -144,6 +173,65 @@ module RockautoApi
         end
 
         data.empty? ? nil : data
+      end
+
+      def parse_part_search_json(response)
+        html = response["searchnoderesults"]
+        return [] unless html && !html.empty?
+
+        doc = Nokogiri::HTML(html)
+        parse_part_search_listings(doc)
+      end
+
+      def parse_part_search_listings(doc)
+        doc.css(".listing-container-c").map { |container|
+          begin
+            next nil if container.at_css(".listing-final-partnumber").nil?
+
+            part_number = container.at_css(".listing-final-partnumber")&.text&.strip || "Unknown"
+            brand = container.at_css(".listing-final-manufacturer")&.text&.strip
+            price_el = container.at_css(".listing-price")
+            price = price_el&.text&.strip
+            image_elem = container.at_css("img.listing-inline-image") || container.at_css("img")
+            image_url = Parsers::HtmlHelpers.make_absolute_url(image_elem["src"]) if image_elem&.attr("src")
+            info_link = container.at_css("a[href*='moreinfo']")
+            info_url = Parsers::HtmlHelpers.make_absolute_url(info_link["href"]) if info_link&.attr("href")
+            name_text = container.at_css(".listing-text-row b")&.text&.strip
+            name = name_text || "#{brand} #{part_number}"
+            category_elem = container.at_css(".listing-footnote-text")
+            category = category_elem&.text&.strip
+
+            supplement_input = container.at_css("input[name='listing_data_supplemental']")
+            essential_input = container.at_css("input[name^='listing_data_essential']")
+            listing_data = nil
+            if supplement_input || essential_input
+              listing_data = {}
+              if essential_input
+                ess = JSON.parse(essential_input["value"] || "{}") rescue {}
+                listing_data["groupindex"] = ess["groupindex"].to_s if ess["groupindex"]
+                listing_data["car"] = { "carcode" => ess["carcode"], "parttype" => ess["parttype"], "partkey" => ess["partkey"] }
+              end
+              if supplement_input
+                supp = JSON.parse(supplement_input["value"] || "{}") rescue {}
+                listing_data["supplemental"] = { "partnumber" => supp["partnumber"], "catalogname" => supp["catalogname"] }
+              end
+            end
+
+            Models::PartInfo.new(
+              name: name,
+              part_number: part_number,
+              brand: brand,
+              price: price,
+              url: nil,
+              image_url: image_url,
+              info_url: info_url,
+              category: category,
+              listing_data: listing_data
+            )
+          rescue StandardError
+            nil
+          end
+        }.compact
       end
 
       def parse_what_is_called_results(doc)
