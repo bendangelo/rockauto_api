@@ -106,7 +106,7 @@ module RockautoApi
         parts = parts.map do |p|
           attrs = p.to_h
           if include_fitments && attrs[:listing_data]
-            fitment_result = get_fitment_for_part(attrs[:listing_data])
+            attrs[:buyers_guide] = get_fitment_for_part(attrs[:listing_data])
           end
           Models::PartInfo.new(**attrs)
         end
@@ -201,8 +201,8 @@ module RockautoApi
             category_elem = container.at_css(".listing-footnote-text")
             category = category_elem&.text&.strip
 
-            supplement_input = container.at_css("input[name='listing_data_supplemental']")
-            essential_input = container.at_css("input[name^='listing_data_essential']")
+            supplement_input = container.at_css("input[name='listing_data_supplemental'], input[id^='listing_data_supplemental']")
+            essential_input = container.at_css("input[name^='listing_data_essential'], input[id^='listing_data_essential']")
             listing_data = nil
             if supplement_input || essential_input
               listing_data = {}

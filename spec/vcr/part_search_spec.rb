@@ -59,5 +59,29 @@ RSpec.describe "Part Search endpoints", :vcr do
         expect(part.part_number).not_to eq("Unknown")
       end
     end
+
+    describe "with fitments" do
+      it "includes buyers guide fitment data", cassette: "part_search_with_fitments" do
+        result = client.search_parts_by_number("FG0326", include_fitments: true)
+        expect(result).to be_a(RockautoApi::Models::PartSearchResult)
+        expect(result.count).to be > 0
+
+        parts_with_fitments = result.parts.select { |p| p.buyers_guide&.fitments&.any? }
+        expect(parts_with_fitments).not_to be_empty,
+          "Expected at least one part to have fitment data"
+
+        parts_with_fitments.each do |part|
+          bg = part.buyers_guide
+          expect(bg).to be_a(RockautoApi::Models::BuyersGuideResult)
+          expect(bg.part_number).to eq(part.part_number)
+          expect(bg.fitments).to all be_a(RockautoApi::Models::FitmentInfo)
+          bg.fitments.each do |fitment|
+            expect(fitment.year).to be > 0
+            expect(fitment.make).not_to be_empty
+            expect(fitment.model).not_to be_empty
+          end
+        end
+      end
+    end
   end
 end

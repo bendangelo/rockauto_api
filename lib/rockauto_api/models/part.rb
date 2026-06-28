@@ -15,6 +15,7 @@ module RockautoApi
       attribute? :specifications, Types::String.optional
       attribute? :compatibility_notes, Types::String.optional
       attribute? :listing_data, Types::Hash
+      attribute? :buyers_guide, Types.Instance(RockautoApi::Models::BuyersGuideResult)
     end
 
     class PartSearchResult < Dry::Struct
